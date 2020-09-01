@@ -6,7 +6,7 @@
   - single-line comment and inline comment started with `//` 
   - multi-line comment with `/* */`
 - Expandable keyword support
-  - Import data from other json / jsonc file by `"_include_json": "abslote_path_to_json"`
+  - Import data from other json / jsonc file by `"_include_json": "path_to_json"`
 
 Jsonc package is built on python standard library, and provide the same functions call as python standard library. It can be imported by `import jsonc as json`, and keep the rest of the code that using json module unchanged.
 
@@ -16,19 +16,20 @@ By default, duplicated key form sub jsonc files will be overwritten by the main 
 
 ```jsonc
 {
-    // file /home/user/1.json
-    "_include_json": "/home/user/2.json",
+    // file 1.json
+    // sub json path can be a relative path or absolute path
+    "_include_json": "2.json",
     "key1": 1,
     "dict1":
     {
-        "_include_json": "/home/user/2.json",
+        "_include_json": "2.json",
         "key2": 2,
         "key4": 4,  // trailing comma is also allowed
     }
 }
 
 {
-    // file /home/user/2.json
+    // file 2.json
     // this key will be overwritten in 'dict1'
     "key2": 22,
     "key3": 23
@@ -39,9 +40,9 @@ By default, duplicated key form sub jsonc files will be overwritten by the main 
 >>> import jsonc as json 
 >>> print(json.dumps(json.load(open('1.json', 'r')), indent=4, sort_keys=True))
 {
-    "_include_json": "/home/minjunli/2.json",
+    "_include_json": "2.json",
     "dict1": {
-        "_include_json": "/home/minjunli/2.json",
+        "_include_json": "2.json",
         "key2": 2,
         "key3": 23,
         "key4": 4

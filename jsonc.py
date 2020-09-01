@@ -2,18 +2,15 @@
 Json for config file. Added supports for comments and expandable keywords.
 """
 
-import json
 import copy
+import json
+import os
 
 RECURRENT_OBJECT_TYPES = (dict, list)
 
 # Identifier key to import another json file,
 # work as prefix, allowing "INCLUDE_KEY_1", "INCLUDE_KEY_2"...
 INCLUDE_KEY = '_include_json'
-
-def _read_file(filepath):
-    with open(filepath, 'r') as f:
-        return f.read()
 
 # There may be performance suffer backtracking the last comma
 def _remove_last_comma(str_list, before_index):
@@ -138,13 +135,20 @@ def _json_walker(json_obj, **kwargs):
         for k, v in json_obj.items():
             # support multiple include suffix, e.g. "include_key1", "include_key2"...
             if k.startswith(INCLUDE_KEY):
-                to_update.append(
-                    _json_include(
-                        _read_file(v),
-                        inside_include=True,
-                        **kwargs
+                base_path = kwargs.get('base_path', '')
+                if v.startswith('/'):
+                    file_path = v
+                else:
+                    file_path = os.path.join(base_path, v)
+                with open(file_path, 'r') as fp:
+                    kwargs['base_path'] = os.path.dirname(fp.name)
+                    to_update.append(
+                        _json_include(
+                            fp.read(),
+                            inside_include=True,
+                            **kwargs
+                        )
                     )
-                )
             elif isinstance(v, RECURRENT_OBJECT_TYPES):
                 _json_walker(v, **kwargs)
     elif isinstance(json_obj, list):
@@ -156,6 +160,8 @@ def _json_walker(json_obj, **kwargs):
 
 def _update_walker(d: dict, u: dict):
     """Similar to dict update in python, but apply recursively
+
+    TODO this is rather a quick implementation for keep_top_values, consider to optimize it @p2
 
     Args:
         d (dict): dict to be updated
@@ -179,13 +185,14 @@ def _update_walker(d: dict, u: dict):
             _update_walker(i, j)
     return d
 
-def _json_include(text: str, inside_include=False, keep_top_values=True, **kwargs):
+def _json_include(text: str, inside_include=False, keep_top_values=True, base_path='', **kwargs):
     """Build jsonc object from text
 
     Args:
         text (str): loaded text from jsonc file
         inside_include (bool, optional): means this function is not top level _json_include call. Defaults to False.
         keep_top_values (bool, optional): duplicated sub json key will be overwritten. Defaults to True.
+        base_path (str): base path for relative includes sub jsonc. Defaults to empty string.
 
     Returns:
         dict: loaded jsonc dict
@@ -202,7 +209,7 @@ def _json_include(text: str, inside_include=False, keep_top_values=True, **kwarg
             'The JSON file being included should always be a dict rather than a list'
     
     # update missing values from included files
-    _json_walker(d)
+    _json_walker(d, base_path=base_path)
     
     if keep_top_values:
         # recover the original values from top files
@@ -232,14 +239,14 @@ def _remove_include_key(json_obj):
 
 # Below are just some wrapper function around the standard json module,
 # note that not all original kwargs are tested.
-def loads(text, remove_include_key=False, **kwargs):
-    d = _json_include(text, keep_top_values=True, **kwargs)
+def loads(text, remove_include_key=False, base_path='', **kwargs):
+    d = _json_include(text, keep_top_values=True, base_path=base_path, **kwargs)
     if remove_include_key:
         _remove_include_key(d)
     return d
 
 def load(fp, remove_include_key=False, **kwargs):
-    return loads(fp.read(), remove_include_key=remove_include_key, **kwargs)
+    return loads(fp.read(), remove_include_key=remove_include_key, base_path=os.path.dirname(fp.name), **kwargs)
 
 def dumps(obj, **kwargs):
     return json.dumps(obj, **kwargs)
